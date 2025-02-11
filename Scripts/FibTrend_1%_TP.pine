@@ -1,0 +1,56 @@
+//@version=5
+strategy("Volume + Fibonacci + Trend + ATR Strategy with 1% Take Profit", overlay=true)
+
+// Input settings
+length = input(24, title="Volume Lookback Period")
+fibLevel1 = input(0.618, title="Fibonacci Level 1")
+fibLevel2 = input(0.5, title="Fibonacci Level 2")
+riskReward = input(2.0, title="Risk to Reward Ratio")
+smaLength = input(200, title="SMA Length for Trend Filter")  // Trend filter with SMA
+atrLength = input(14, title="ATR Length")  // ATR for dynamic take profit
+
+// Calculate 24-hour average volume
+volume24 = ta.sma(volume, length)
+
+// Identify volume surges (when current volume exceeds the 24-hour average)
+volumeCondition = volume > volume24
+
+// Calculate Fibonacci retracement levels for the last 50 bars
+var float highLevel = na
+var float lowLevel = na
+lookbackPeriod = input(50, title="Fibonacci Lookback Period")
+if (bar_index >= lookbackPeriod)
+    highLevel := ta.highest(high, lookbackPeriod)
+    lowLevel := ta.lowest(low, lookbackPeriod)
+
+// Calculate Fibonacci retracement levels
+fib618 = lowLevel + (highLevel - lowLevel) * fibLevel1
+fib50 = lowLevel + (highLevel - lowLevel) * fibLevel2
+
+// Plot Fibonacci levels on the chart
+plot(fib618, color=color.red, title="Fib 0.618")
+plot(fib50, color=color.blue, title="Fib 0.5")
+
+// Trend filter using a simple moving average (SMA)
+sma200 = ta.sma(close, smaLength)
+
+// Buy condition: Price is above the 0.618 Fibonacci level, volume condition, and price is above SMA200
+buyCondition = close > fib618 and volumeCondition and close > sma200
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+// Sell condition: Price falls below the 0.5 Fibonacci level, indicating potential reversal
+sellCondition = close < fib50 and volumeCondition
+if (sellCondition)
+    strategy.close("Buy")
+
+// Set dynamic take profit using ATR for a more adaptive target
+atr = ta.atr(atrLength)
+takeProfitPriceATR = strategy.position_avg_price + atr * riskReward  // Dynamic target based on ATR
+
+// Set take profit at 1% above entry price
+takeProfitPrice1Pct = strategy.position_avg_price * 1.01  // 1% take profit
+
+// Exit: Either take profit at 1% or ATR-based take profit
+strategy.exit("Take Profit 1%", from_entry="Buy", limit=takeProfitPrice1Pct)
+strategy.exit("Take Profit ATR", from_entry="Buy", limit=takeProfitPriceATR, stop=fib50)

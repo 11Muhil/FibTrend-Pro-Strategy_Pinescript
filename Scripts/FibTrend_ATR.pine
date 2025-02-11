@@ -1,0 +1,57 @@
+//@version=5
+// DISCLAIMER: This script is for educational purposes only.  
+// Use it at your own risk. No guarantee of profitability.  
+
+strategy("Optimized Volume + Fibonacci + Trend + ATR Strategy", overlay=true)
+
+// Input settings
+length = input(24, title="Volume Lookback Period")
+fibLevel1 = input(0.618, title="Fibonacci Level 1")
+fibLevel2 = input(0.5, title="Fibonacci Level 2")
+riskReward = input(3.0, title="Risk to Reward Ratio")  // Increased R:R for maximizing profits
+smaLength = input(200, title="SMA Length for Trend Filter")  
+atrLength = input(14, title="ATR Length")  
+trailPerc = input(1.5, title="Trailing Stop %") / 100  // Trailing stop for maximizing profit
+emaShort = input(9, title="Short EMA")  
+emaLong = input(26, title="Long EMA")  
+lookbackPeriod = input(50, title="Fibonacci Lookback Period")
+
+// Volume Calculation
+volume24 = ta.sma(volume, length)
+volumeCondition = volume > volume24
+
+// Fibonacci Calculation
+var float highLevel = na
+var float lowLevel = na
+if (bar_index >= lookbackPeriod)
+    highLevel := ta.highest(high, lookbackPeriod)
+    lowLevel := ta.lowest(low, lookbackPeriod)
+
+fib618 = lowLevel + (highLevel - lowLevel) * fibLevel1
+fib50 = lowLevel + (highLevel - lowLevel) * fibLevel2
+
+plot(fib618, color=color.red, title="Fib 0.618")
+plot(fib50, color=color.blue, title="Fib 0.5")
+
+// Trend Confirmation
+sma200 = ta.sma(close, smaLength)
+emaFast = ta.ema(close, emaShort)
+emaSlow = ta.ema(close, emaLong)
+
+// ATR-based Stop Loss & Take Profit
+atr = ta.atr(atrLength)
+stopLoss = close - atr * 1.5  // Stop loss at 1.5x ATR
+takeProfitATR = close + atr * riskReward  // Dynamic TP
+
+// Buy Condition: Price > Fibonacci 0.618 + EMA Cross + Above SMA200 + Volume Surge
+buyCondition = close > fib618 and emaFast > emaSlow and close > sma200 and volumeCondition
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+// Sell Condition: Price < Fibonacci 0.5 + Volume Surge (Exit Condition)
+sellCondition = close < fib50 and volumeCondition
+if (sellCondition)
+    strategy.close("Buy")
+
+// Exit Conditions (Maximized Profits)
+strategy.exit("Take Profit ATR", from_entry="Buy", limit=takeProfitATR, stop=stopLoss, trail_price=close, trail_offset=close * trailPerc)
